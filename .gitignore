@@ -11,3 +11,7 @@ tmp/
 *.png
 **/.DS_Store
 .venv/
+.venv-broken-*/
+__pycache__/
+*.py[cod]
+.pytest_cache/
