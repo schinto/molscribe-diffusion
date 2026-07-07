@@ -1,8 +1,7 @@
 """Isolated loss helpers for discrete edge diffusion.
 
-This module is not integrated into ``Criterion`` or ``GraphLoss`` yet.  It
-computes cross-entropy on sparse edge-diffusion targets prepared by
-``edge_training``.
+The loss is used only by the optional ``GraphLoss`` edge-diffusion path and
+computes cross-entropy on sparse targets prepared by ``edge_training``.
 """
 
 from __future__ import annotations

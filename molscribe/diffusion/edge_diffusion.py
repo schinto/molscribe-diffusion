@@ -1,8 +1,7 @@
 """Minimal discrete edge diffusion predictor.
 
-This module is intentionally not wired into ``Decoder``, ``Criterion``, or the
-existing ``GraphPredictor``.  It provides a standalone model skeleton for
-experiments behind future configuration flags.
+The predictor is instantiated only behind ``use_edge_diffusion`` and does not
+replace the existing ``GraphPredictor`` baseline.
 """
 
 from __future__ import annotations

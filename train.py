@@ -17,6 +17,7 @@ from torch.utils.data.distributed import DistributedSampler
 from transformers import get_scheduler
 
 from molscribe.dataset import TrainDataset, AuxTrainDataset, bms_collate
+from molscribe.diffusion.edge_training import prepare_optional_edge_diffusion_refs
 from molscribe.model import Encoder, Decoder
 from molscribe.loss import Criterion
 from molscribe.utils import seed_torch, save_args, init_summary_writer, LossMeter, AverageMeter, asMinutes, timeSince, \
@@ -66,6 +67,8 @@ def get_args():
                        help="Hidden size for the optional edge diffusion pair MLP. Defaults to dec_hidden_size.")
     group.add_argument("--edge_diffusion_steps", type=int, default=1024,
                        help="Number of supported discrete edge diffusion timesteps.")
+    group.add_argument("--edge_diffusion_schedule", type=str, default="linear", choices=["linear", "cosine"],
+                       help="Mask schedule used for optional edge diffusion training batches.")
     group.add_argument("--use_edge_diffusion_loss", action="store_true",
                        help="Use the optional edge diffusion loss for edge-diffusion outputs.")
     # Data
@@ -212,6 +215,7 @@ def train_fn(train_loader, encoder, decoder, criterion, encoder_optimizer, decod
         images = images.to(device)
         batch_size = images.size(0)
         with torch.cuda.amp.autocast(enabled=args.fp16):
+            refs = prepare_optional_edge_diffusion_refs(refs, args)
             features, hiddens = encoder(images, refs)
             results = decoder(features, hiddens, refs)
             losses = criterion(results, refs)
