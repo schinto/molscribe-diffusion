@@ -1,8 +1,9 @@
 """Training preparation helpers for discrete edge diffusion.
 
-These helpers are intentionally not integrated into ``Criterion`` or
-``Decoder`` yet.  They convert full edge targets ``[B, K, K]`` into noisy edge
-inputs and sparse denoising targets for independent upper-triangle pairs.
+These helpers convert full edge targets ``[B, K, K]`` into noisy edge inputs
+and sparse denoising targets for the optional training path.  Dataset and
+collate outputs stay unchanged; integration happens by adding
+``refs["edge_diffusion"]`` inside the training loop.
 """
 
 from __future__ import annotations
@@ -102,6 +103,61 @@ def prepare_edge_diffusion_training_batch(
         "valid_pair_mask": valid_pair_mask,
         "mask_ratio": mask_ratio,
     }
+
+
+def prepare_optional_edge_diffusion_refs(
+    refs: Dict[str, torch.Tensor],
+    args,
+    generator: torch.Generator | None = None,
+) -> Dict[str, torch.Tensor]:
+    """Optionally add prepared edge-diffusion training refs.
+
+    This helper does not change the dataset/collate output.  During training,
+    when both ``use_edge_diffusion`` and ``use_edge_diffusion_loss`` are
+    enabled, it derives ``refs["edge_diffusion"]`` from existing
+    ``refs["edges"]``:
+
+    ``noisy_edges``: ``[B, K, K]`` masked edge inputs.
+    ``timestep``: ``[B]`` sampled zero-based diffusion steps.
+    ``loss_targets``: ``[B, K, K]`` sparse targets with ignored entries ``-100``.
+    ``valid_pair_mask``: ``[B, K, K]`` independent valid pairs ``i < j``.
+    """
+
+    if not (getattr(args, "use_edge_diffusion", False) and
+            getattr(args, "use_edge_diffusion_loss", False)):
+        return refs
+    if "edges" not in refs or "edge_diffusion" in refs:
+        return refs
+
+    num_steps = getattr(args, "edge_diffusion_steps", 1024)
+    if num_steps < 2:
+        raise ValueError("edge_diffusion_steps must be at least 2")
+
+    targets = refs["edges"]
+    timestep = torch.randint(
+        low=0,
+        high=num_steps,
+        size=(targets.size(0),),
+        device=targets.device,
+        generator=generator,
+    )
+    edge_refs = prepare_edge_diffusion_training_batch(
+        targets,
+        timestep=timestep,
+        num_steps=num_steps,
+        schedule=getattr(args, "edge_diffusion_schedule", "linear"),
+        generator=generator,
+    )
+    edge_refs["noisy_edges"] = torch.where(
+        edge_refs["noisy_edges"] == EDGE_IGNORE_INDEX,
+        torch.zeros_like(edge_refs["noisy_edges"]),
+        edge_refs["noisy_edges"],
+    )
+    edge_refs["timestep"] = timestep
+
+    refs = dict(refs)
+    refs["edge_diffusion"] = edge_refs
+    return refs
 
 
 def _resolve_schedule(schedule: Schedule) -> Callable[[Union[int, torch.Tensor], int], torch.Tensor]:
