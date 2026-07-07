@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from scipy.optimize import linear_sum_assignment
+from .diffusion.edge_loss import EdgeDiffusionLoss
 from .tokenizer import PAD_ID, MASK, MASK_ID
 
 
@@ -71,13 +72,23 @@ class SequenceLoss(nn.Module):
 
 class GraphLoss(nn.Module):
 
-    def __init__(self):
+    def __init__(self, use_edge_diffusion_loss=False):
         super(GraphLoss, self).__init__()
         weight = torch.ones(7) * 10
         weight[0] = 1
         self.criterion = nn.CrossEntropyLoss(weight, ignore_index=-100)
+        self.edge_diffusion_criterion = EdgeDiffusionLoss() if use_edge_diffusion_loss else None
 
     def forward(self, outputs, targets):
+        """
+        outputs['edges']: [B, 7, K, K] baseline graph logits.
+        targets['edges']: [B, K, K] baseline graph targets.
+
+        Optional diffusion path, enabled only with use_edge_diffusion_loss:
+        outputs['edge_diffusion']: [B, 7, K, K] denoising logits.
+        targets['edge_diffusion']: [B, K, K] sparse denoising targets where
+        ignored entries are -100.
+        """
         results = {}
         if 'coords' in outputs:
             pred = outputs['coords']
@@ -91,6 +102,13 @@ class GraphLoss(nn.Module):
             max_len = pred.size(-1)
             target = targets['edges'][:, :max_len, :max_len]
             results['edges'] = self.criterion(pred, target)
+        if 'edge_diffusion' in outputs:
+            if self.edge_diffusion_criterion is None:
+                raise ValueError("edge_diffusion outputs require use_edge_diffusion_loss")
+            results['edge_diffusion'] = self.edge_diffusion_criterion(
+                outputs['edge_diffusion'],
+                targets['edge_diffusion'],
+            )
         return results
 
 
@@ -101,7 +119,7 @@ class Criterion(nn.Module):
         criterion = {}
         for format_ in args.formats:
             if format_ == 'edges':
-                criterion['edges'] = GraphLoss()
+                criterion['edges'] = GraphLoss(use_edge_diffusion_loss=getattr(args, 'use_edge_diffusion_loss', False))
             else:
                 if MASK in tokenizer[format_].stoi:
                     ignore_indices = [PAD_ID, MASK_ID]

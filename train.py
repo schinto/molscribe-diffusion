@@ -66,6 +66,8 @@ def get_args():
                        help="Hidden size for the optional edge diffusion pair MLP. Defaults to dec_hidden_size.")
     group.add_argument("--edge_diffusion_steps", type=int, default=1024,
                        help="Number of supported discrete edge diffusion timesteps.")
+    group.add_argument("--use_edge_diffusion_loss", action="store_true",
+                       help="Use the optional edge diffusion loss for edge-diffusion outputs.")
     # Data
     parser.add_argument('--data_path', type=str, default=None)
     parser.add_argument('--train_file', type=str, default=None)
