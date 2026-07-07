@@ -64,6 +64,7 @@ class MolScribe:
         group.add_argument("--use_edge_diffusion", action="store_true")
         group.add_argument("--edge_diffusion_hidden_size", type=int, default=None)
         group.add_argument("--edge_diffusion_steps", type=int, default=1024)
+        group.add_argument("--use_edge_diffusion_loss", action="store_true")
         parser.add_argument('--continuous_coords', action='store_true')
         parser.add_argument('--compute_confidence', action='store_true')
         # Data
