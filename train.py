@@ -59,6 +59,13 @@ def get_args():
     group.add_argument("--hidden_dropout", help="Hidden dropout", type=float, default=0.1)
     group.add_argument("--attn_dropout", help="Attention dropout", type=float, default=0.1)
     group.add_argument("--max_relative_positions", help="Max relative positions", type=int, default=0)
+    group = parser.add_argument_group("edge_diffusion_options")
+    group.add_argument("--use_edge_diffusion", action="store_true",
+                       help="Instantiate the optional edge diffusion predictor without changing baseline outputs.")
+    group.add_argument("--edge_diffusion_hidden_size", type=int, default=None,
+                       help="Hidden size for the optional edge diffusion pair MLP. Defaults to dec_hidden_size.")
+    group.add_argument("--edge_diffusion_steps", type=int, default=1024,
+                       help="Number of supported discrete edge diffusion timesteps.")
     # Data
     parser.add_argument('--data_path', type=str, default=None)
     parser.add_argument('--train_file', type=str, default=None)

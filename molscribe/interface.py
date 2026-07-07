@@ -61,6 +61,9 @@ class MolScribe:
         group.add_argument("--hidden_dropout", help="Hidden dropout", type=float, default=0.1)
         group.add_argument("--attn_dropout", help="Attention dropout", type=float, default=0.1)
         group.add_argument("--max_relative_positions", help="Max relative positions", type=int, default=0)
+        group.add_argument("--use_edge_diffusion", action="store_true")
+        group.add_argument("--edge_diffusion_hidden_size", type=int, default=None)
+        group.add_argument("--edge_diffusion_steps", type=int, default=1024)
         parser.add_argument('--continuous_coords', action='store_true')
         parser.add_argument('--compute_confidence', action='store_true')
         # Data
