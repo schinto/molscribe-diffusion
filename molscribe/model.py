@@ -346,11 +346,63 @@ class Decoder(nn.Module):
                 targets = {'edges': refs['edges']}
                 if 'coords' in predictions:
                     targets['coords'] = refs['coords']
+                self._add_edge_diffusion_training_outputs(predictions, targets, dec_out, refs)
                 results['edges'] = (predictions, targets)
             else:
                 labels, label_lengths = refs[format_]
                 results[format_] = self.decoder[format_](encoder_out, labels, label_lengths)
         return results
+
+    def _add_edge_diffusion_training_outputs(self, predictions, targets, hidden, refs):
+        """Optionally add edge-diffusion training tensors.
+
+        This hook is active only when both ``use_edge_diffusion`` and
+        ``use_edge_diffusion_loss`` are enabled and ``refs`` already contains an
+        ``edge_diffusion`` dictionary.  Expected prepared tensors are:
+
+        ``noisy_edges``: ``[B, K, K]``
+        ``timestep``: scalar or ``[B]``
+        ``loss_targets``: ``[B, K, K]`` with ignored entries set to ``-100``
+        ``valid_pair_mask``: optional ``[B, K, K]``
+
+        The existing baseline ``edges`` prediction and target are left
+        unchanged.
+        """
+
+        if not (getattr(self.args, 'use_edge_diffusion', False) and
+                getattr(self.args, 'use_edge_diffusion_loss', False)):
+            return
+        if 'edge_diffusion' not in refs:
+            return
+        if 'edge_diffusion' not in self.decoder:
+            raise ValueError("use_edge_diffusion is required for edge_diffusion refs")
+
+        edge_refs = refs['edge_diffusion']
+        atom_hidden = self._select_atom_hidden(hidden, refs['atom_indices'][0])
+        predictions['edge_diffusion'] = self.decoder['edge_diffusion'](
+            atom_hidden,
+            edge_refs['noisy_edges'],
+            edge_refs['timestep'],
+            valid_edge_mask=edge_refs.get('valid_pair_mask'),
+        )
+        targets['edge_diffusion'] = edge_refs['loss_targets']
+
+    @staticmethod
+    def _select_atom_hidden(hidden, indices):
+        """Select atom hidden states.
+
+        Args:
+            hidden: Decoder hidden states with shape ``[B, L, D]``.
+            indices: Atom token indices with shape ``[B, K]``.
+
+        Returns:
+            Atom hidden states with shape ``[B, K, D]``.
+        """
+
+        batch_size, _, dim = hidden.size()
+        batch_id = torch.arange(batch_size, device=hidden.device).unsqueeze(1).expand_as(indices).reshape(-1)
+        indices = indices.to(device=hidden.device).view(-1)
+        return hidden[batch_id, indices].view(batch_size, -1, dim)
 
     def decode(self, encoder_out, hiddens=None, refs=None, beam_size=1, n_best=1):
         """Inference mode. Call each decoder's decode method (if required), convert the output format (e.g. token to
