@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import torch
+
 from molscribe.diffusion.edge_diffusion import EdgeDiffusionPredictor
 from molscribe.model import Decoder, GraphPredictor
 
@@ -38,6 +40,43 @@ def test_decoder_is_compatible_with_args_without_edge_diffusion_fields():
 
     assert list(decoder.decoder.keys()) == ["edges"]
     assert isinstance(decoder.decoder["edges"], GraphPredictor)
+
+
+def test_optional_edge_diffusion_does_not_change_graph_predictor_outputs():
+    torch.manual_seed(7)
+    baseline_decoder = Decoder(_args(use_edge_diffusion=False), tokenizer={})
+    diffusion_decoder = Decoder(_args(use_edge_diffusion=True), tokenizer={})
+    diffusion_decoder.decoder["edges"].load_state_dict(baseline_decoder.decoder["edges"].state_dict())
+
+    hidden = torch.randn(2, 5, 8)
+    atom_indices = torch.tensor([[0, 2, 4], [1, 3, 4]])
+
+    baseline_edges = baseline_decoder.decoder["edges"](hidden, indices=atom_indices)["edges"]
+    diffusion_edges = diffusion_decoder.decoder["edges"](hidden, indices=atom_indices)["edges"]
+
+    assert torch.equal(baseline_edges, diffusion_edges)
+
+
+def test_optional_decoder_loads_baseline_state_dict_with_strict_false():
+    baseline_decoder = Decoder(_args(use_edge_diffusion=False), tokenizer={})
+    diffusion_decoder = Decoder(_args(use_edge_diffusion=True), tokenizer={})
+
+    incompatible = diffusion_decoder.load_state_dict(baseline_decoder.state_dict(), strict=False)
+
+    assert incompatible.unexpected_keys == []
+    assert incompatible.missing_keys
+    assert all(key.startswith("decoder.edge_diffusion.") for key in incompatible.missing_keys)
+
+
+def test_baseline_decoder_loads_optional_state_dict_with_strict_false():
+    baseline_decoder = Decoder(_args(use_edge_diffusion=False), tokenizer={})
+    diffusion_decoder = Decoder(_args(use_edge_diffusion=True), tokenizer={})
+
+    incompatible = baseline_decoder.load_state_dict(diffusion_decoder.state_dict(), strict=False)
+
+    assert incompatible.missing_keys == []
+    assert incompatible.unexpected_keys
+    assert all(key.startswith("decoder.edge_diffusion.") for key in incompatible.unexpected_keys)
 
 
 def _args(
