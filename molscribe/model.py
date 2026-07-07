@@ -10,6 +10,7 @@ from .utils import FORMAT_INFO, to_device
 from .tokenizer import SOS_ID, EOS_ID, PAD_ID, MASK_ID
 from .inference import GreedySearch, BeamSearch
 from .transformer import TransformerDecoder, Embeddings
+from .diffusion.edge_diffusion import EdgeDiffusionPredictor
 
 
 class Encoder(nn.Module):
@@ -317,6 +318,12 @@ class Decoder(nn.Module):
         for format_ in args.formats:
             if format_ == 'edges':
                 decoder['edges'] = GraphPredictor(args.dec_hidden_size, coords=args.continuous_coords)
+                if getattr(args, 'use_edge_diffusion', False):
+                    decoder['edge_diffusion'] = EdgeDiffusionPredictor(
+                        args.dec_hidden_size,
+                        pair_hidden_size=getattr(args, 'edge_diffusion_hidden_size', None),
+                        max_timesteps=getattr(args, 'edge_diffusion_steps', 1024),
+                    )
             else:
                 decoder[format_] = TransformerDecoderAR(args, tokenizer[format_])
         self.decoder = nn.ModuleDict(decoder)
